@@ -7,25 +7,32 @@ datasource db {
 }
 
 model Organization {
-  id        String   @id @default(uuid())
-  name      String
-  createdAt DateTime @default(now())
-  users     User[]
+  id                    String                 @id @default(uuid())
+  name                  String
+  nameAr                String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  users                 User[]
+  departments           Department[]
+  subDepartments        SubDepartment[]
+  departmentMemberships DepartmentMembership[]
 
   @@map("organizations")
 }
 
 model User {
-  id        String  @id @default(uuid())
-  organizationId  String
-  organization    Organization @relation(fields: [organizationId], references: [id])
-  username        String @unique
-  email           String @unique
-  passwordHash    String
-  isActive        Boolean @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  refreshTokens   RefreshToken[]
+  id             String         @id @default(uuid())
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id])
+  username       String         @unique
+  email          String         @unique
+  passwordHash   String
+  isActive       Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  refreshTokens  RefreshToken[]
+  memberships    DepartmentMembership[]
+
   @@map("users")
 }
 
@@ -38,4 +45,51 @@ model RefreshToken {
   createdAt DateTime @default(now())
 
   @@map("refresh_tokens")
+}
+
+model Department {
+  id             String                 @id @default(uuid())
+  organizationId String
+  organization   Organization           @relation(fields: [organizationId], references: [id])
+  name           String
+  nameAr         String?
+  subDepartments SubDepartment[]
+  memberships    DepartmentMembership[]
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@map("departments")
+}
+
+model SubDepartment {
+  id             String                 @id @default(uuid())
+  organizationId String
+  organization   Organization           @relation(fields: [organizationId], references: [id])
+  departmentId   String
+  department     Department             @relation(fields: [departmentId], references: [id])
+  name           String
+  nameAr         String?
+  memberships    DepartmentMembership[]
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@map("sub_departments")
+}
+
+model DepartmentMembership {
+  id              String         @id @default(uuid())
+  organizationId  String
+  organization    Organization   @relation(fields: [organizationId], references: [id])
+  userId          String
+  user            User           @relation(fields: [userId], references: [id])
+  departmentId    String
+  department      Department     @relation(fields: [departmentId], references: [id])
+  subDepartmentId String?
+  subDepartment   SubDepartment? @relation(fields: [subDepartmentId], references: [id])
+  position        String         // "HOS" | "STAFF" for now
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@unique([userId, departmentId, subDepartmentId])
+  @@map("department_memberships")
 }
