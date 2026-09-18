@@ -6,6 +6,23 @@ datasource db {
   provider = "postgresql"
 }
 
+enum CreatedVia {
+  WALKIN
+  CALL
+  APP
+}
+
+enum MembershipPosition {
+  HOS
+  STAFF
+}
+
+enum RoleScope {
+  GLOBAL
+  UNIT
+  DEPARTMENT
+}
+
 model Organization {
   id                    String                 @id @default(uuid())
   name                  String
@@ -16,6 +33,9 @@ model Organization {
   departments           Department[]
   subDepartments        SubDepartment[]
   departmentMemberships DepartmentMembership[]
+  roles                 Role[]
+  userRoles             UserRole[]
+  customers             Customer[]
 
   @@map("organizations")
 }
@@ -32,6 +52,7 @@ model User {
   updatedAt      DateTime       @updatedAt
   refreshTokens  RefreshToken[]
   memberships    DepartmentMembership[]
+  userRoles      UserRole[]
 
   @@map("users")
 }
@@ -55,6 +76,7 @@ model Department {
   nameAr         String?
   subDepartments SubDepartment[]
   memberships    DepartmentMembership[]
+  userRoles      UserRole[]
   createdAt      DateTime               @default(now())
   updatedAt      DateTime               @updatedAt
 
@@ -86,10 +108,80 @@ model DepartmentMembership {
   department      Department     @relation(fields: [departmentId], references: [id])
   subDepartmentId String?
   subDepartment   SubDepartment? @relation(fields: [subDepartmentId], references: [id])
-  position        String         // "HOS" | "STAFF" for now
+  position        MembershipPosition         
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
   @@unique([userId, departmentId, subDepartmentId])
   @@map("department_memberships")
+}
+
+model Permission {
+  id              String           @id @default(uuid())
+  code            String           @unique
+  description     String?
+  createdAt       DateTime         @default(now())
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model Role {
+  id              String           @id @default(uuid())
+  organizationId  String
+  organization    Organization     @relation(fields: [organizationId], references: [id])
+  name            String
+  description     String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+
+  @@unique([organizationId, name])
+  @@map("roles")
+}
+
+model RolePermission {
+  id           String     @id @default(uuid())
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id])
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+  roleId         String
+  role           Role         @relation(fields: [roleId], references: [id])
+  scope          RoleScope     
+  departmentId   String?
+  department     Department?  @relation(fields: [departmentId], references: [id])
+  createdAt      DateTime     @default(now())
+
+  @@map("user_roles")
+}
+
+model Customer {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  phone          String   // normalized E.164 on write, never trust raw input
+  name           String
+  nameAr         String?
+  region         String?
+  placeNumber    String?
+  emiratesId     String?
+  email          String?
+  createdVia     CreatedVia   
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  @@unique([organizationId, phone])
+  @@map("customers")
 }
