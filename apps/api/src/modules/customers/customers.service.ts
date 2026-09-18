@@ -1,10 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { createZodDto } from 'nestjs-zod';
-import { createCustomerSchema } from '@repo/shared';
+import { CreateCustomerDto } from '@repo/shared';
 import { PrismaService } from '../../database/prisma.service';
 import { normalizePhoneE164 } from '../../common/utils/phone.util';
 
-class CreateCustomerDto extends createZodDto(createCustomerSchema) {}
 @Injectable()
 export class CustomersService {
   constructor(private readonly prisma: PrismaService) {}
