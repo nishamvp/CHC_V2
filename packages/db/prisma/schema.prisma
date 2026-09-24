@@ -23,6 +23,27 @@ enum RoleScope {
   DEPARTMENT
 }
 
+enum RequestStatus {
+  NEW
+  PENDING_ASSIGNMENT
+  IN_PROGRESS
+  HOS_HANDLING
+  PENDING_HOS_REVIEW
+  REJECTED_BY_HOS
+  REPLIED_TO_CHC
+  COMPLETED
+  REOPENED
+  REJECTED
+  CLOSED
+}
+
+enum RequestChannel {
+  WALKIN
+  CALL
+  APP
+  INTERNAL
+}
+
 model Organization {
   id                    String                 @id @default(uuid())
   name                  String
@@ -36,23 +57,27 @@ model Organization {
   roles                 Role[]
   userRoles             UserRole[]
   customers             Customer[]
+  requests              Request[]
 
   @@map("organizations")
 }
 
 model User {
-  id             String         @id @default(uuid())
-  organizationId String
-  organization   Organization   @relation(fields: [organizationId], references: [id])
-  username       String         @unique
-  email          String         @unique
-  passwordHash   String
-  isActive       Boolean        @default(true)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  refreshTokens  RefreshToken[]
-  memberships    DepartmentMembership[]
-  userRoles      UserRole[]
+  id               String                 @id @default(uuid())
+  organizationId   String
+  organization     Organization           @relation(fields: [organizationId], references: [id])
+  username         String                 @unique
+  email            String                 @unique
+  passwordHash     String
+  isActive         Boolean                @default(true)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  refreshTokens    RefreshToken[]
+  memberships      DepartmentMembership[]
+  userRoles        UserRole[]
+  requests         Request[]              @relation("CreatedRequests")
+  assignedRequests Request[]              @relation("AssignedRequests")
+  requestEvents    RequestEvent[]
 
   @@map("users")
 }
@@ -79,6 +104,7 @@ model Department {
   userRoles      UserRole[]
   createdAt      DateTime               @default(now())
   updatedAt      DateTime               @updatedAt
+  requests       Request[]
 
   @@map("departments")
 }
@@ -94,23 +120,24 @@ model SubDepartment {
   memberships    DepartmentMembership[]
   createdAt      DateTime               @default(now())
   updatedAt      DateTime               @updatedAt
+  requests       Request[]
 
   @@map("sub_departments")
 }
 
 model DepartmentMembership {
-  id              String         @id @default(uuid())
+  id              String             @id @default(uuid())
   organizationId  String
-  organization    Organization   @relation(fields: [organizationId], references: [id])
+  organization    Organization       @relation(fields: [organizationId], references: [id])
   userId          String
-  user            User           @relation(fields: [userId], references: [id])
+  user            User               @relation(fields: [userId], references: [id])
   departmentId    String
-  department      Department     @relation(fields: [departmentId], references: [id])
+  department      Department         @relation(fields: [departmentId], references: [id])
   subDepartmentId String?
-  subDepartment   SubDepartment? @relation(fields: [subDepartmentId], references: [id])
-  position        MembershipPosition         
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  subDepartment   SubDepartment?     @relation(fields: [subDepartmentId], references: [id])
+  position        MembershipPosition
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
 
   @@unique([userId, departmentId, subDepartmentId])
   @@map("department_memberships")
@@ -160,7 +187,7 @@ model UserRole {
   user           User         @relation(fields: [userId], references: [id])
   roleId         String
   role           Role         @relation(fields: [roleId], references: [id])
-  scope          RoleScope     
+  scope          RoleScope
   departmentId   String?
   department     Department?  @relation(fields: [departmentId], references: [id])
   createdAt      DateTime     @default(now())
@@ -169,19 +196,62 @@ model UserRole {
 }
 
 model Customer {
-  id             String   @id @default(uuid())
+  id             String       @id @default(uuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
-  phone          String   // normalized E.164 on write, never trust raw input
+  phone          String // normalized E.164 on write, never trust raw input
   name           String
   nameAr         String?
   region         String?
   placeNumber    String?
   emiratesId     String?
   email          String?
-  createdVia     CreatedVia   
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdVia     CreatedVia
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  requests       Request[]
+
   @@unique([organizationId, phone])
   @@map("customers")
+}
+
+model Request {
+  id              String         @id @default(uuid())
+  organizationId  String
+  organization    Organization   @relation(fields: [organizationId], references: [id])
+  requestNo       String         @unique
+  customerId      String
+  customer        Customer       @relation(fields: [customerId], references: [id])
+  departmentId    String
+  department      Department     @relation(fields: [departmentId], references: [id])
+  subDepartmentId String?
+  subDepartment   SubDepartment? @relation(fields: [subDepartmentId], references: [id])
+  typeOfRequest   String
+  notes           String
+  status          RequestStatus  @default(NEW)
+  channel         RequestChannel
+  assignedStaffId String?
+  assignedStaff   User?          @relation("AssignedRequests", fields: [assignedStaffId], references: [id])
+  createdById     String
+  createdBy       User           @relation("CreatedRequests", fields: [createdById], references: [id])
+  expiryDate      DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  events          RequestEvent[]
+
+  @@map("requests")
+}
+
+model RequestEvent {
+  id         String         @id @default(uuid())
+  requestId  String
+  request    Request        @relation(fields: [requestId], references: [id])
+  actorId    String
+  actor      User           @relation(fields: [actorId], references: [id])
+  fromStatus RequestStatus?
+  toStatus   RequestStatus
+  note       String?
+  createdAt  DateTime       @default(now())
+
+  @@map("request_events")
 }
