@@ -65,5 +65,3 @@ ALTER TABLE "request_events" ADD CONSTRAINT "request_events_requestId_fkey" FORE
 -- AddForeignKey
 ALTER TABLE "request_events" ADD CONSTRAINT "request_events_actorId_fkey" FOREIGN KEY ("actorId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
-
-CREATE SEQUENCE IF NOT EXISTS request_number_seq START 1;
