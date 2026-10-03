@@ -32,6 +32,7 @@ Required extensions:
 - Use enums for closed state sets (request status, request channel, role scope, membership position, customer createdVia), but regular strings for flexible labels such as request type.
 - Every status change is performed by one `transition()` service which writes immutable `RequestEvent` audit entries; no controller/service sets request status directly.
 - Request numbers must use a transactional per-organization sequence, never `countDocuments()`.
+- Keep growing domain rules in dedicated module files rather than accumulating them inside a service. For example, `ALLOWED_TRANSITIONS` belongs in `modules/requests/request-workflow.ts`; `RequestsService` imports and applies it. This keeps business rules testable, reusable, and prevents a large service file as workflow features grow.
 
 ## v1 risks that v2 fixes
 

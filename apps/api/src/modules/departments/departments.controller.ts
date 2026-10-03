@@ -3,6 +3,10 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PoliciesGuard } from '../../casl/policies.guard';
 import { CheckPolicies } from '../../casl/check-policies.decorator';
 import { DepartmentsService } from './departments.service';
+import { createZodDto } from 'nestjs-zod';
+import { createDepartmentSchema } from '@repo/shared';
+
+class CreateDepartmentDto extends createZodDto(createDepartmentSchema) {}
 
 @Controller('departments')
 export class DepartmentsController {
@@ -11,7 +15,7 @@ export class DepartmentsController {
   @UseGuards(JwtAuthGuard, PoliciesGuard)
   @CheckPolicies((ability) => ability.can('manage', 'Department'))
   @Post()
-  create(@Body() body: { name: string; nameAr?: string }, @Req() req) {
+  create(@Body() body: CreateDepartmentDto, @Req() req) {
     return this.departmentsService.create(
       req.user.organizationId,
       body.name,

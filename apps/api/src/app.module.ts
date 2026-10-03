@@ -8,6 +8,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { DepartmentsModule } from './modules/departments/departments.module';
 import { CaslModule } from './casl/casl.module';
 import { CustomersModule } from './modules/customers/customers.module';
+import { RequestsModule } from './modules/requests/requests.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { CustomersModule } from './modules/customers/customers.module';
     DepartmentsModule,
     CaslModule,
     CustomersModule,
+    RequestsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

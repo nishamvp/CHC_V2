@@ -45,19 +45,20 @@ enum RequestChannel {
 }
 
 model Organization {
-  id                    String                 @id @default(uuid())
-  name                  String
-  nameAr                String?
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  users                 User[]
-  departments           Department[]
-  subDepartments        SubDepartment[]
-  departmentMemberships DepartmentMembership[]
-  roles                 Role[]
-  userRoles             UserRole[]
-  customers             Customer[]
-  requests              Request[]
+  id                     String                  @id @default(uuid())
+  name                   String
+  nameAr                 String?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  users                  User[]
+  departments            Department[]
+  subDepartments         SubDepartment[]
+  departmentMemberships  DepartmentMembership[]
+  roles                  Role[]
+  userRoles              UserRole[]
+  customers              Customer[]
+  requests               Request[]
+  requestNumberSequences RequestNumberSequence[]
 
   @@map("organizations")
 }
@@ -254,4 +255,15 @@ model RequestEvent {
   createdAt  DateTime       @default(now())
 
   @@map("request_events")
+}
+
+model RequestNumberSequence {
+  organizationId String
+  year           Int
+  lastNumber     Int          @default(0)
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  updatedAt      DateTime     @updatedAt
+
+  @@id([organizationId, year])
+  @@map("request_number_sequences")
 }

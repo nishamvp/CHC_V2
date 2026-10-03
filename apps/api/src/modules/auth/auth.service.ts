@@ -14,6 +14,7 @@ export class AuthService {
   async validateUser(username: string, password: string) {
     const user = await this.prisma.user.findUnique({ where: { username } });
     if (!user) return null;
+    if (!user.isActive) return null; 
 
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
     if (!isPasswordValid) return null;
