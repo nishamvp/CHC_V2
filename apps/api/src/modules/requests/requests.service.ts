@@ -9,7 +9,6 @@ import { CreateRequestDto } from '@repo/shared';
 import { PrismaService } from '../../database/prisma.service';
 import { ALLOWED_TRANSITIONS } from './request-workflow';
 
-
 @Injectable()
 export class RequestsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -161,5 +160,44 @@ export class RequestsService {
 
       return updatedRequest;
     });
+  }
+  async assignStaff(
+    organizationId: string,
+    requestId: string,
+    staffId: string,
+    actorId: string,
+  ) {
+    const request = await this.prisma.request.findFirst({
+      where: { id: requestId, organizationId },
+    });
+    if (!request) {
+      throw new NotFoundException('Request not found');
+    }
+
+    const membership = await this.prisma.departmentMembership.findFirst({
+      where: {
+        userId: staffId,
+        departmentId: request.departmentId,
+        organizationId,
+      },
+    });
+    if (!membership) {
+      throw new BadRequestException(
+        "This staff member is not part of the request's department",
+      );
+    }
+
+    await this.prisma.request.update({
+      where: { id: requestId },
+      data: { assignedStaffId: staffId },
+    });
+
+    return this.transition(
+      organizationId,
+      requestId,
+      actorId,
+      'IN_PROGRESS',
+      'Assigned to staff',
+    );
   }
 }

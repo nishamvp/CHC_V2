@@ -6,7 +6,7 @@ import {
 } from '@casl/ability';
 import { PrismaService } from '../database/prisma.service';
 
-type Actions = 'manage' | 'create' | 'read' | 'update' | 'delete';
+type Actions = 'manage' | 'create' | 'read' | 'update' | 'delete' | 'reopen' | 'assign';
 type Subjects = 'Department' | 'Role' | 'User' | 'all';
 export type AppAbility = MongoAbility<[Actions, Subjects]>;
 

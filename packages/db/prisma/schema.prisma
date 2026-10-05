@@ -44,6 +44,11 @@ enum RequestChannel {
   INTERNAL
 }
 
+enum CommentVisibility {
+  ALL
+  DEPT_ONLY
+}
+
 model Organization {
   id                     String                  @id @default(uuid())
   name                   String
@@ -59,6 +64,7 @@ model Organization {
   customers              Customer[]
   requests               Request[]
   requestNumberSequences RequestNumberSequence[]
+  comments               Comment[]
 
   @@map("organizations")
 }
@@ -79,6 +85,7 @@ model User {
   requests         Request[]              @relation("CreatedRequests")
   assignedRequests Request[]              @relation("AssignedRequests")
   requestEvents    RequestEvent[]
+  comments         Comment[]
 
   @@map("users")
 }
@@ -239,6 +246,7 @@ model Request {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
   events          RequestEvent[]
+  comments        Comment[]
 
   @@map("requests")
 }
@@ -266,4 +274,20 @@ model RequestNumberSequence {
 
   @@id([organizationId, year])
   @@map("request_number_sequences")
+}
+
+model Comment {
+  id             String            @id @default(uuid())
+  organizationId String
+  organization   Organization      @relation(fields: [organizationId], references: [id])
+  requestId      String
+  request        Request           @relation(fields: [requestId], references: [id])
+  authorId       String
+  author         User              @relation(fields: [authorId], references: [id])
+  body           String
+  visibility     CommentVisibility @default(ALL)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@map("comments")
 }

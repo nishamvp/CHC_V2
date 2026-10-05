@@ -34,6 +34,9 @@ export const transitionSchema = z.object({
   toStatus: requestStatusSchema,
   note: z.string().optional(),
 });
-
+export const assignStaffSchema = z.object({
+  staffId: z.string().uuid(),
+});
 export type CreateRequestDto = z.infer<typeof createRequestSchema>;
 export type TransitionDto = z.infer<typeof transitionSchema>;
+export type AssignStaffDto = z.infer<typeof assignStaffSchema>;

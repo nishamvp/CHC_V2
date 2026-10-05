@@ -5,6 +5,8 @@ export const APP_PERMISSIONS = {
   ROLE_MANAGE: "role.manage",
   REQUEST_CREATE: "request.create",
   REQUEST_REOPEN: "request.reopen",
+  REQUEST_ASSIGN: "request.assign",
 } as const;
 
-export type AppPermission = typeof APP_PERMISSIONS[keyof typeof APP_PERMISSIONS];
+export type AppPermission =
+  (typeof APP_PERMISSIONS)[keyof typeof APP_PERMISSIONS];

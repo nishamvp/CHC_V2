@@ -9,7 +9,11 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { createZodDto } from 'nestjs-zod';
-import { createRequestSchema, transitionSchema } from '@repo/shared';
+import {
+  createRequestSchema,
+  transitionSchema,
+  assignStaffSchema,
+} from '@repo/shared';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PoliciesGuard } from '../../casl/policies.guard';
 import { CheckPolicies } from '../../casl/check-policies.decorator';
@@ -18,6 +22,7 @@ import { RequestsService } from './requests.service';
 
 class CreateRequestDto extends createZodDto(createRequestSchema) {}
 class TransitionDto extends createZodDto(transitionSchema) {}
+class AssignStaffDto extends createZodDto(assignStaffSchema) {}
 
 @Controller('requests')
 export class RequestsController {
@@ -61,6 +66,21 @@ export class RequestsController {
       req.user.userId,
       body.toStatus,
       body.note,
+    );
+  }
+  @UseGuards(JwtAuthGuard, PoliciesGuard)
+  @CheckPolicies((ability) => ability.can('assign', 'Request'))
+  @Post(':id/assign')
+  assignStaff(
+    @Param('id') id: string,
+    @Body() body: AssignStaffDto,
+    @Req() req,
+  ) {
+    return this.requestsService.assignStaff(
+      req.user.organizationId,
+      id,
+      body.staffId,
+      req.user.userId,
     );
   }
 }

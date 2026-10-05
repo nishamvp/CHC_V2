@@ -4,3 +4,4 @@ export * from "./dto/refresh.schema";
 export * from "./dto/customer.schema";
 export * from "./dto/request.schema";
 export * from "./dto/department.schema";
+export * from "./dto/comment.schema";
