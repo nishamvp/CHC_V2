@@ -8,9 +8,8 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { RequestStatus } from '@prisma/client';
 import { createZodDto } from 'nestjs-zod';
-import { createRequestSchema } from '@repo/shared';
+import { createRequestSchema, transitionSchema } from '@repo/shared';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PoliciesGuard } from '../../casl/policies.guard';
 import { CheckPolicies } from '../../casl/check-policies.decorator';
@@ -18,6 +17,7 @@ import { CaslAbilityFactory } from '../../casl/casl-ability.factory';
 import { RequestsService } from './requests.service';
 
 class CreateRequestDto extends createZodDto(createRequestSchema) {}
+class TransitionDto extends createZodDto(transitionSchema) {}
 
 @Controller('requests')
 export class RequestsController {
@@ -41,7 +41,7 @@ export class RequestsController {
   @Post(':id/transition')
   async transition(
     @Param('id') id: string,
-    @Body() body: { toStatus: RequestStatus; note?: string },
+    @Body() body: TransitionDto,
     @Req() req,
   ) {
     if (body.toStatus === 'REOPENED') {
