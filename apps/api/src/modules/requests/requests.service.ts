@@ -4,15 +4,58 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { RequestStatus } from '@prisma/client';
 import { CreateRequestDto } from '@repo/shared';
 import { PrismaService } from '../../database/prisma.service';
 import { ALLOWED_TRANSITIONS } from './request-workflow';
+import { Prisma, RequestStatus } from '@prisma/client';
+import { findRequestOrThrow } from './request.helper';
 
 @Injectable()
 export class RequestsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  // Reusable: the one place a status change actually happens
+  private async applyTransition(
+    tx: Prisma.TransactionClient,
+    request: { id: string; organizationId: string; status: RequestStatus },
+    actorId: string,
+    toStatus: RequestStatus,
+    note?: string,
+    extraData: Prisma.RequestUncheckedUpdateManyInput = {},
+  ) {
+    const allowed = ALLOWED_TRANSITIONS[request.status];
+    if (!allowed.includes(toStatus)) {
+      throw new BadRequestException(
+        `Cannot move from ${request.status} to ${toStatus}`,
+      );
+    }
+
+    const result = await tx.request.updateMany({
+      where: {
+        id: request.id,
+        organizationId: request.organizationId,
+        status: request.status,
+      },
+      data: { ...extraData, status: toStatus },
+    });
+    if (result.count !== 1) {
+      throw new ConflictException(
+        'This request was updated by another user. Refresh and try again.',
+      );
+    }
+
+    await tx.requestEvent.create({
+      data: {
+        requestId: request.id,
+        actorId,
+        fromStatus: request.status,
+        toStatus,
+        note,
+      },
+    });
+
+    return tx.request.findUniqueOrThrow({ where: { id: request.id } });
+  }
   async create(
     organizationId: string,
     createdById: string,
@@ -107,58 +150,8 @@ export class RequestsService {
     note?: string,
   ) {
     return this.prisma.$transaction(async (tx) => {
-      const request = await tx.request.findFirst({
-        where: {
-          id: requestId,
-          organizationId,
-        },
-      });
-
-      if (!request) {
-        throw new NotFoundException('Request not found');
-      }
-
-      const allowedStatuses = ALLOWED_TRANSITIONS[request.status];
-
-      if (!allowedStatuses.includes(toStatus)) {
-        throw new BadRequestException(
-          `Cannot move from ${request.status} to ${toStatus}`,
-        );
-      }
-
-      // Status condition prevents two simultaneous actions from overwriting each other.
-      const result = await tx.request.updateMany({
-        where: {
-          id: requestId,
-          organizationId,
-          status: request.status,
-        },
-        data: {
-          status: toStatus,
-        },
-      });
-
-      if (result.count !== 1) {
-        throw new ConflictException(
-          'This request was updated by another user. Refresh and try again.',
-        );
-      }
-
-      const updatedRequest = await tx.request.findUniqueOrThrow({
-        where: { id: requestId },
-      });
-
-      await tx.requestEvent.create({
-        data: {
-          requestId,
-          actorId,
-          fromStatus: request.status,
-          toStatus,
-          note,
-        },
-      });
-
-      return updatedRequest;
+      const request = await findRequestOrThrow(organizationId, requestId, tx);
+      return this.applyTransition(tx, request, actorId, toStatus, note);
     });
   }
   async assignStaff(
@@ -167,37 +160,32 @@ export class RequestsService {
     staffId: string,
     actorId: string,
   ) {
-    const request = await this.prisma.request.findFirst({
-      where: { id: requestId, organizationId },
-    });
-    if (!request) {
-      throw new NotFoundException('Request not found');
-    }
+    return this.prisma.$transaction(async (tx) => {
+      const request = await findRequestOrThrow(organizationId, requestId, tx);
 
-    const membership = await this.prisma.departmentMembership.findFirst({
-      where: {
-        userId: staffId,
-        departmentId: request.departmentId,
-        organizationId,
-      },
-    });
-    if (!membership) {
-      throw new BadRequestException(
-        "This staff member is not part of the request's department",
+      const membership = await tx.departmentMembership.findFirst({
+        where: {
+          userId: staffId,
+          departmentId: request.departmentId,
+          organizationId,
+        },
+      });
+      if (!membership) {
+        throw new BadRequestException(
+          "This staff member is not part of the request's department",
+        );
+      }
+
+      return this.applyTransition(
+        tx,
+        request,
+        actorId,
+        'IN_PROGRESS',
+        'Assigned to staff',
+        {
+          assignedStaffId: staffId,
+        },
       );
-    }
-
-    await this.prisma.request.update({
-      where: { id: requestId },
-      data: { assignedStaffId: staffId },
     });
-
-    return this.transition(
-      organizationId,
-      requestId,
-      actorId,
-      'IN_PROGRESS',
-      'Assigned to staff',
-    );
   }
 }
