@@ -10,6 +10,7 @@ import { CaslModule } from './casl/casl.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { RequestsModule } from './modules/requests/requests.module';
 import { CommentsModule } from './modules/comments/comments.module';
+import { UsersModule } from './modules/users/users.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { CommentsModule } from './modules/comments/comments.module';
     CustomersModule,
     RequestsModule,
     CommentsModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

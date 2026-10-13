@@ -14,7 +14,7 @@ export class AuthService {
   async validateUser(username: string, password: string) {
     const user = await this.prisma.user.findUnique({ where: { username } });
     if (!user) return null;
-    if (!user.isActive) return null; 
+    if (!user.isActive) return null;
 
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
     if (!isPasswordValid) return null;
@@ -68,8 +68,8 @@ export class AuthService {
     await this.prisma.refreshToken.delete({ where: { id: matchedTokenId } });
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      throw new UnauthorizedException('User no longer exists');
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('User no longer exists or is inactive');
     }
 
     return this.issueTokens(user.id, user.organizationId);

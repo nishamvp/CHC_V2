@@ -1,13 +1,27 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
+import { createZodDto } from 'nestjs-zod';
+import {
+  addDepartmentMemberSchema,
+  createDepartmentSchema,
+} from '@repo/shared';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PoliciesGuard } from '../../casl/policies.guard';
 import { CheckPolicies } from '../../casl/check-policies.decorator';
 import { DepartmentsService } from './departments.service';
-import { createZodDto } from 'nestjs-zod';
-import { createDepartmentSchema } from '@repo/shared';
 
 class CreateDepartmentDto extends createZodDto(createDepartmentSchema) {}
+class AddDepartmentMemberDto extends createZodDto(addDepartmentMemberSchema) {}
 
+@ApiBearerAuth()
 @Controller('departments')
 export class DepartmentsController {
   constructor(private readonly departmentsService: DepartmentsService) {}
@@ -27,5 +41,20 @@ export class DepartmentsController {
   @Get()
   findAll(@Req() req) {
     return this.departmentsService.findAllForOrg(req.user.organizationId);
+  }
+
+  @UseGuards(JwtAuthGuard, PoliciesGuard)
+  @CheckPolicies((ability) => ability.can('manage', 'DepartmentMembership'))
+  @Post(':departmentId/members')
+  addMember(
+    @Param('departmentId') departmentId: string,
+    @Body() body: AddDepartmentMemberDto,
+    @Req() req,
+  ) {
+    return this.departmentsService.addMember(
+      req.user.organizationId,
+      departmentId,
+      body,
+    );
   }
 }

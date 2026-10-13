@@ -6,9 +6,20 @@ import {
 } from '@casl/ability';
 import { PrismaService } from '../database/prisma.service';
 
-type Actions = 'manage' | 'create' | 'read' | 'update' | 'delete' | 'reopen' | 'assign';
-type Subjects = 'Department' | 'Role' | 'User' | 'all';
+type Actions =
+  'manage' | 'create' | 'read' | 'update' | 'delete' | 'reopen' | 'assign';
+
+type Subjects =
+  'Department' | 'DepartmentMembership' | 'Role' | 'User' | 'Request' | 'all';
+
 export type AppAbility = MongoAbility<[Actions, Subjects]>;
+
+// "department.membership" -> "DepartmentMembership", "special_request" -> "SpecialRequest"
+const toSubject = (parts: string[]) =>
+  parts
+    .flatMap((part) => part.split('_'))
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join('') as Subjects;
 
 @Injectable()
 export class CaslAbilityFactory {
@@ -28,14 +39,16 @@ export class CaslAbilityFactory {
 
     for (const ur of userRoles) {
       for (const rp of ur.role.rolePermissions) {
-        const [subject, action] = rp.permission.code.split('.');
-        const subjectName = (subject.charAt(0).toUpperCase() +
-          subject.slice(1)) as Subjects;
+        const parts = rp.permission.code.split('.');
+        if (parts.length < 2) continue; // ignore malformed codes
+
+        const action = parts.pop() as Actions; // last piece = action
+        const subjectName = toSubject(parts); // everything before it = subject
 
         if (ur.scope === 'GLOBAL') {
-          can(action as Actions, subjectName);
+          can(action, subjectName);
         } else if (ur.scope === 'DEPARTMENT' && ur.departmentId) {
-          can(action as Actions, subjectName, { id: ur.departmentId } as any);
+          can(action, subjectName, { id: ur.departmentId } as any);
         }
       }
     }

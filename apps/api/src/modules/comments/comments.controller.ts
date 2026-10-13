@@ -11,9 +11,10 @@ import { createZodDto } from 'nestjs-zod';
 import { createCommentSchema } from '@repo/shared';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CommentsService } from './comments.service';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
 class CreateCommentDto extends createZodDto(createCommentSchema) {}
-
+@ApiBearerAuth()
 @Controller('comments')
 export class CommentsController {
   constructor(private readonly commentsService: CommentsService) {}

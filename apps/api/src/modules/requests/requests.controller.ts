@@ -19,11 +19,12 @@ import { PoliciesGuard } from '../../casl/policies.guard';
 import { CheckPolicies } from '../../casl/check-policies.decorator';
 import { CaslAbilityFactory } from '../../casl/casl-ability.factory';
 import { RequestsService } from './requests.service';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
 class CreateRequestDto extends createZodDto(createRequestSchema) {}
 class TransitionDto extends createZodDto(transitionSchema) {}
 class AssignStaffDto extends createZodDto(assignStaffSchema) {}
-
+@ApiBearerAuth()
 @Controller('requests')
 export class RequestsController {
   constructor(

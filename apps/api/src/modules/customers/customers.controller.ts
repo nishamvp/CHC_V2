@@ -11,9 +11,10 @@ import { createZodDto } from 'nestjs-zod';
 import { createCustomerSchema } from '@repo/shared';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CustomersService } from './customers.service';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
 class CreateCustomerDto extends createZodDto(createCustomerSchema) {}
-
+@ApiBearerAuth()
 @Controller('customers')
 export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
