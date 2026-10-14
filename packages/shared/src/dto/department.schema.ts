@@ -9,5 +9,12 @@ export const addDepartmentMemberSchema = z.object({
   position: z.enum(["HOS", "STAFF"]),
   subDepartmentId: z.string().uuid().optional(),
 });
+export const updateMemberPositionSchema = z.object({
+  position: z.enum(["HOS", "STAFF"]),
+  replaceCurrentHead: z.boolean().optional(),
+});
+export type UpdateMemberPositionDto = z.infer<
+  typeof updateMemberPositionSchema
+>;
 export type CreateDepartmentDto = z.infer<typeof createDepartmentSchema>;
 export type AddDepartmentMemberDto = z.infer<typeof addDepartmentMemberSchema>;

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { passwordSchema } from "./password.schema";
 
 export const createUserSchema = z.object({
   username: z
@@ -10,6 +11,6 @@ export const createUserSchema = z.object({
       "Use lowercase letters, numbers, dot, dash or underscore only",
     ),
   email: z.string().email(),
-  password: z.string().min(8).max(72),
+  password: passwordSchema,
 });
 export type CreateUserDto = z.infer<typeof createUserSchema>;

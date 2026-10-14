@@ -162,17 +162,23 @@ export class RequestsService {
   ) {
     return this.prisma.$transaction(async (tx) => {
       const request = await findRequestOrThrow(organizationId, requestId, tx);
+      if (request.status === 'IN_PROGRESS') {
+        throw new BadRequestException(
+          'This request is already assigned. Use the reassign action to change the staff member.',
+        );
+      }
 
       const membership = await tx.departmentMembership.findFirst({
         where: {
           userId: staffId,
           departmentId: request.departmentId,
           organizationId,
+          user: { isActive: true },
         },
       });
       if (!membership) {
         throw new BadRequestException(
-          "This staff member is not part of the request's department",
+          "This staff member is not an active member of the request's department",
         );
       }
 
@@ -186,6 +192,82 @@ export class RequestsService {
           assignedStaffId: staffId,
         },
       );
+    });
+  }
+  async reassignStaff(
+    organizationId: string,
+    requestId: string,
+    staffId: string,
+    actorId: string,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const request = await findRequestOrThrow(organizationId, requestId, tx);
+
+      if (request.status !== 'IN_PROGRESS') {
+        throw new BadRequestException(
+          'Only a request that is in progress can be reassigned',
+        );
+      }
+      if (request.assignedStaffId === staffId) {
+        throw new BadRequestException(
+          'This staff member is already assigned to the request',
+        );
+      }
+
+      const membership = await tx.departmentMembership.findFirst({
+        where: {
+          userId: staffId,
+          departmentId: request.departmentId,
+          organizationId,
+          user: { isActive: true },
+        },
+      });
+      if (!membership) {
+        throw new BadRequestException(
+          "This staff member is not an active member of the request's department",
+        );
+      }
+
+      // Only succeeds if nobody changed the request since we read it
+      const result = await tx.request.updateMany({
+        where: {
+          id: requestId,
+          organizationId,
+          status: 'IN_PROGRESS',
+          assignedStaffId: request.assignedStaffId,
+        },
+        data: { assignedStaffId: staffId },
+      });
+      if (result.count !== 1) {
+        throw new ConflictException(
+          'This request was updated by another user. Refresh and try again.',
+        );
+      }
+
+      const people = await tx.user.findMany({
+        where: {
+          id: {
+            in: [staffId, request.assignedStaffId].filter(
+              (id): id is string => !!id,
+            ),
+          },
+        },
+        select: { id: true, username: true },
+      });
+      const nameOf = (id: string | null) =>
+        people.find((p) => p.id === id)?.username ?? 'nobody';
+
+      await tx.requestEvent.create({
+        data: {
+          requestId,
+          actorId,
+          fromStatus: 'IN_PROGRESS',
+          toStatus: 'IN_PROGRESS',
+          note: `Reassigned from ${nameOf(request.assignedStaffId)} to ${nameOf(staffId)}`,
+        },
+      });
+
+      return tx.request.findUniqueOrThrow({ where: { id: requestId } });
     });
   }
 }

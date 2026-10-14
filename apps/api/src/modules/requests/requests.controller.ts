@@ -84,4 +84,19 @@ export class RequestsController {
       req.user.userId,
     );
   }
+  @UseGuards(JwtAuthGuard, PoliciesGuard)
+  @CheckPolicies((ability) => ability.can('assign', 'Request'))
+  @Post(':id/reassign')
+  reassignStaff(
+    @Param('id') id: string,
+    @Body() body: AssignStaffDto,
+    @Req() req,
+  ) {
+    return this.requestsService.reassignStaff(
+      req.user.organizationId,
+      id,
+      body.staffId,
+      req.user.userId,
+    );
+  }
 }

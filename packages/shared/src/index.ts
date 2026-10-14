@@ -6,3 +6,4 @@ export * from "./dto/request.schema";
 export * from "./dto/department.schema";
 export * from "./dto/comment.schema";
 export * from "./dto/user.schema";
+export * from "./dto/password.schema"

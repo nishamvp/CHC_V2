@@ -6,12 +6,14 @@ import {
   Post,
   Req,
   UseGuards,
+  Patch,
 } from '@nestjs/common';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { createZodDto } from 'nestjs-zod';
 import {
   addDepartmentMemberSchema,
   createDepartmentSchema,
+  updateMemberPositionSchema,
 } from '@repo/shared';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PoliciesGuard } from '../../casl/policies.guard';
@@ -20,6 +22,9 @@ import { DepartmentsService } from './departments.service';
 
 class CreateDepartmentDto extends createZodDto(createDepartmentSchema) {}
 class AddDepartmentMemberDto extends createZodDto(addDepartmentMemberSchema) {}
+class UpdateMemberPositionDto extends createZodDto(
+  updateMemberPositionSchema,
+) {}
 
 @ApiBearerAuth()
 @Controller('departments')
@@ -54,6 +59,32 @@ export class DepartmentsController {
     return this.departmentsService.addMember(
       req.user.organizationId,
       departmentId,
+      body,
+    );
+  }
+  @UseGuards(JwtAuthGuard, PoliciesGuard)
+  @CheckPolicies((ability) => ability.can('manage', 'DepartmentMembership'))
+  @Get(':departmentId/members')
+  listMembers(@Param('departmentId') departmentId: string, @Req() req) {
+    return this.departmentsService.listMembers(
+      req.user.organizationId,
+      departmentId,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, PoliciesGuard)
+  @CheckPolicies((ability) => ability.can('manage', 'DepartmentMembership'))
+  @Patch(':departmentId/members/:membershipId')
+  updateMemberPosition(
+    @Param('departmentId') departmentId: string,
+    @Param('membershipId') membershipId: string,
+    @Body() body: UpdateMemberPositionDto,
+    @Req() req,
+  ) {
+    return this.departmentsService.updateMemberPosition(
+      req.user.organizationId,
+      departmentId,
+      membershipId,
       body,
     );
   }

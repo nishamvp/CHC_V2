@@ -27,6 +27,7 @@ export class UsersService {
           username: data.username,
           email: data.email.trim().toLowerCase(),
           passwordHash,
+          mustChangePassword: true,
         },
         select: SAFE_USER_FIELDS,
       });
