@@ -10,6 +10,13 @@ import { ALLOWED_TRANSITIONS } from './request-workflow';
 import { Prisma, RequestStatus } from '@prisma/client';
 import { findRequestOrThrow } from './request.helper';
 
+const dubaiYear = () =>
+  Number(
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Dubai',
+      year: 'numeric',
+    }).format(new Date()),
+  );
 @Injectable()
 export class RequestsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -95,7 +102,7 @@ export class RequestsService {
         }
       }
 
-      const year = new Date().getUTCFullYear();
+      const year = dubaiYear();
 
       // Create this organization's sequence row for the year if it does not exist.
       await tx.$executeRaw`

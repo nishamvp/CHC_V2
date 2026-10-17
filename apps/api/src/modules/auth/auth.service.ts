@@ -1,11 +1,23 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
-import { LOCK_MINUTES, MAX_FAILED_ATTEMPTS } from './auth.constants';
+import {
+  LOCK_MINUTES,
+  MAX_FAILED_ATTEMPTS,
+  MAX_SESSIONS_PER_USER,
+  REFRESH_TOKEN_DAYS,
+  REUSE_GRACE_SECONDS,
+  USED_TOKEN_KEEP_HOURS,
+} from './auth.constants';
+import { Prisma } from '@prisma/client';
+import { DUMMY_HASH, safeEqual, sha256 } from './auth.utils';
 
-const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', 10);
 @Injectable()
 export class AuthService {
   constructor(
@@ -67,57 +79,135 @@ export class AuthService {
       user;
     return safeUser;
   }
-  private async issueTokens(userId: string, organizationId: string) {
-    const accessToken = this.jwtService.sign({
-      sub: userId,
-      orgId: organizationId,
-    });
-
-    const refreshToken = crypto.randomUUID() + crypto.randomUUID();
-    const tokenHash = await bcrypt.hash(refreshToken, 10);
-
-    await this.prisma.refreshToken.create({
-      data: {
-        userId,
-        tokenHash,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      },
-    });
-
-    return { userId, accessToken, refreshToken };
-  }
 
   async login(user: { id: string; organizationId: string }) {
     return this.issueTokens(user.id, user.organizationId);
   }
+  private async issueTokens(
+    userId: string,
+    organizationId: string,
+    options: { familyId?: string; tx?: Prisma.TransactionClient } = {},
+  ) {
+    const db: Prisma.TransactionClient = options.tx ?? this.prisma;
+    const id = crypto.randomUUID();
+    const secret = crypto.randomBytes(32).toString('hex');
 
-  async refresh(userId: string, refreshToken: string) {
-    const candidates = await this.prisma.refreshToken.findMany({
-      where: { userId, expiresAt: { gt: new Date() } },
+    await db.refreshToken.create({
+      data: {
+        id,
+        userId,
+        familyId: options.familyId ?? crypto.randomUUID(),
+        tokenHash: sha256(secret),
+        expiresAt: new Date(
+          Date.now() + REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000,
+        ),
+      },
+    });
+    await this.pruneSessions(db, userId);
+
+    const accessToken = this.jwtService.sign({
+      sub: userId,
+      orgId: organizationId,
+    });
+    return { userId, accessToken, refreshToken: `${id}.${secret}` };
+  }
+
+  private async pruneSessions(db: Prisma.TransactionClient, userId: string) {
+    const usedCutoff = new Date(
+      Date.now() - USED_TOKEN_KEEP_HOURS * 60 * 60 * 1000,
+    );
+
+    // Expired sessions, and used tokens older than the detection window
+    await db.refreshToken.deleteMany({
+      where: {
+        userId,
+        OR: [{ expiresAt: { lt: new Date() } }, { usedAt: { lt: usedCutoff } }],
+      },
     });
 
-    let matchedTokenId: string | null = null;
-    for (const candidate of candidates) {
-      const isMatch = await bcrypt.compare(refreshToken, candidate.tokenHash);
-      if (isMatch) {
-        matchedTokenId = candidate.id;
-        break;
-      }
+    // Keep only the newest sessions
+    const active = await db.refreshToken.findMany({
+      where: { userId, usedAt: null },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+    const extra = active.slice(MAX_SESSIONS_PER_USER).map((s) => s.id);
+    if (extra.length) {
+      await db.refreshToken.deleteMany({ where: { id: { in: extra } } });
     }
-
-    if (!matchedTokenId) {
-      throw new UnauthorizedException('Invalid or expired refresh token');
-    }
-
-    await this.prisma.refreshToken.delete({ where: { id: matchedTokenId } });
-
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user || !user.isActive) {
-      throw new UnauthorizedException('User no longer exists or is inactive');
-    }
-
-    return this.issueTokens(user.id, user.organizationId);
   }
+
+  async refresh(rawToken: string | undefined) {
+    const invalid = () =>
+      new UnauthorizedException('Invalid or expired refresh token');
+    if (!rawToken) throw invalid();
+
+    const [id, secret] = rawToken.split('.');
+    if (!id || !secret) throw invalid();
+
+    // Decide inside the transaction, throw after it. A throw would undo the cleanup.
+    const outcome = await this.prisma.$transaction(async (tx) => {
+      const stored = await tx.refreshToken.findUnique({
+        where: { id },
+        include: { user: { select: { organizationId: true, isActive: true } } },
+      });
+      if (!stored || !safeEqual(sha256(secret), stored.tokenHash)) {
+        return { ok: false as const };
+      }
+
+      if (stored.usedAt) {
+        const secondsAgo = (Date.now() - stored.usedAt.getTime()) / 1000;
+        if (secondsAgo > REUSE_GRACE_SECONDS) {
+          // Used earlier and shown again later: treat as stolen, end this device's chain
+          await tx.refreshToken.deleteMany({
+            where: { familyId: stored.familyId },
+          });
+        }
+        return { ok: false as const };
+      }
+
+      if (stored.expiresAt < new Date() || !stored.user.isActive) {
+        return { ok: false as const };
+      }
+
+      // Claim the token. If two requests race, only one gets count === 1.
+      const claimed = await tx.refreshToken.updateMany({
+        where: { id, usedAt: null },
+        data: { usedAt: new Date() },
+      });
+      if (claimed.count !== 1) {
+        return { ok: false as const };
+      }
+
+      const tokens = await this.issueTokens(
+        stored.userId,
+        stored.user.organizationId,
+        {
+          familyId: stored.familyId,
+          tx,
+        },
+      );
+      return { ok: true as const, tokens };
+    });
+
+    if (!outcome.ok) throw invalid();
+    return outcome.tokens;
+  }
+
+  async logout(rawToken: string | undefined) {
+    if (!rawToken) return;
+    const [id, secret] = rawToken.split('.');
+    if (!id || !secret) return;
+
+    const stored = await this.prisma.refreshToken.findUnique({ where: { id } });
+    // Needs the real secret, so nobody can end sessions by guessing ids
+    if (!stored || !safeEqual(sha256(secret), stored.tokenHash)) return;
+
+    await this.prisma.refreshToken.deleteMany({
+      where: { familyId: stored.familyId },
+    });
+  }
+
   async changePassword(
     userId: string,
     currentPassword: string,
